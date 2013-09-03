@@ -15,13 +15,26 @@ client.on("connect", function() {
     client.openMailbox("INBOX", function(error, mailbox) {
         if (error) throw error;
 
-        console.log('\n\n> creating message stream without attachment \n');
-        client.createStream({
-            uid: 583,
-            part: 'HEADER'
-        }).pipe(process.stdout, {
-            end: false
+        console.log('\n\n> listing messages \n');
+        client.listMessages(0, 20, function(error, messages) {
+            messages.forEach(function(msg) {
+                console.log(msg.UID + '\t' + msg.title);
+            });
+            console.log('\n\n> search unread messages in current folder \n');
+            client.unreadMessages(function(error, unreadCount) {
+                console.log('unread messages: ' + unreadCount + '\n');
+
+                process.exit(1);
+            });
         });
+
+        // client.createStream({
+        //     uid: 583,
+        //     part: 'HEADER'
+        // }).pipe(process.stdout, {
+        //     end: false
+        // });
+
 
         /*
         client.updateFlags(52, ["\\Answered", "\\Flagged"], "+", console.log)
