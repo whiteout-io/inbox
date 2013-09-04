@@ -14,7 +14,8 @@
     "dependencies": {
         "mimelib": "*",
         "utf7": "~1.0.0",
-        "xoauth2": "*"
+        "xoauth2": "*",
+        "amdefine": ">=0.0.8"
     },
 
     "devDependencies": {
