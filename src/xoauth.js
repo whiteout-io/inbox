@@ -8,7 +8,7 @@ define(function(require) {
     // http://code.google.com/p/google-mail-xoauth-tools/
 
     var crypto = require("crypto"),
-        Buffer = require('buffer-browserify').Buffer;
+        Buffer = require('node-shims').Buffer;
 
     /**
      * Create a XOAUTH login token generator
