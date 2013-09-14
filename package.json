@@ -1,35 +1,28 @@
 {
     "name": "inbox",
     "version": "1.1.39-dev",
-    "author" : "Andris Reinman",
-    "maintainers":[
-        {
-            "name":"andris",
-            "email":"andris@node.ee"
-        }
-    ],
-
-    "main": "lib/client.js",
-
+    "author": "Andris Reinman",
+    "maintainers": [{
+        "name": "andris",
+        "email": "andris@node.ee"
+    }],
+    "main": "src/inbox.js",
     "dependencies": {
-        "mimelib": "*",
-        "utf7": "~1.0.0",
-        "xoauth2": "*",
-        "amdefine": ">=0.0.8"
+        "amdefine": ">=0.0.8",
+        "utf7": "https://github.com/whiteout-io/utf7/tarball/amd",
+        "xoauth2": "https://github.com/whiteout-io/xoauth2/tarball/amd",
+        "mimelib": "https://github.com/whiteout-io/mimelib/tarball/amd",
+        "node-shims": "https://github.com/whiteout-io/node-shims/tarball/master"
     },
-
     "devDependencies": {
         "nodeunit": "*"
     },
-
-    "scripts":{
+    "scripts": {
         "test": "nodeunit test"
     },
-
     "repository": {
         "type": "git",
         "url": "https://github.com/andris9/inbox"
     },
-
     "license": "MIT"
 }

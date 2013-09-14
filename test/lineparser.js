@@ -1,5 +1,5 @@
 var testCase = require('nodeunit').testCase,
-    IMAPLineParser = require("../lib/lineparser");
+    IMAPLineParser = require("../src/lineparser");
     
 
 exports["Type tests"] = {
