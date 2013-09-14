@@ -3,6 +3,8 @@ if (typeof define !== 'function') {
 }
 
 define(function(require) {
+    'use strict';
+
     // TODO: On error close the connection when needed
 
     /**
