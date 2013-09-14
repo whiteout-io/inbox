@@ -7,8 +7,8 @@ define(function (require) {
  * @author Andris Reinman
  */
 
-var Stream = require("stream").Stream,
-    utillib = require("util");
+var Stream = require("node-shims").Stream,
+    utillib = require("node-shims").util;
 
 /**
  * Creates a reusable parser for parsing. It is a writable stream for piping

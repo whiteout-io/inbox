@@ -17,8 +17,8 @@ define(function(require) {
         Mailbox = require("./mailbox").Mailbox,
         detectMailboxType = require("./mailbox").detectMailboxType,
         mimelib = require("mimelib"),
-        xoauth2 = require("xoauth2"), // missing
-        utf7 = require('utf7').imap, // missing
+        xoauth2 = require("xoauth2"),
+        utf7 = require('utf7').imap,
         Buffer = require('node-shims').Buffer.Buffer,
         Stream = require('node-shims').Stream,
         utillib = require('node-shims').util,

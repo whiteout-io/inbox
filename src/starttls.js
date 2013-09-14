@@ -34,8 +34,8 @@ define(function(require) {
         var sslcontext, pair, cleartext;
 
         socket.removeAllListeners("data");
-        sslcontext = require('crypto').createCredentials();
-        pair = require('tls').createSecurePair(sslcontext, false);
+        sslcontext = require('node-shims').crypto.createCredentials();
+        pair = require('node-shims').tls.createSecurePair(sslcontext, false);
         cleartext = pipe(pair, socket);
 
         pair.on('secure', function() {
