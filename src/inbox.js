@@ -25,6 +25,8 @@ define(function(require) {
         net = require('node-shims').net,
         tls = require('node-shims').tls;
 
+    require('setimmediate');
+
     var X_CLIENT_NAME = "inbox",
         X_CLIENT_URL = "https://github.com/andris9/inbox",
         X_CLIENT_VERSION = "1.1.39-dev";
@@ -2035,7 +2037,7 @@ define(function(require) {
             uid, part;
 
         if (this._currentState != this.states.SELECTED) {
-            process.nextTick(this.emit.bind(this, new Error("No inbox selected")));
+            setImmediate(this.emit.bind(this, new Error("No inbox selected")));
             return;
         }
 
@@ -2043,7 +2045,7 @@ define(function(require) {
         part = options.part;
 
         if (typeof uid !== 'number') {
-            process.nextTick(this.emit.bind(this, new Error("Invalid UID value")));
+            setImmediate(this.emit.bind(this, new Error("Invalid UID value")));
             return;
         }
 

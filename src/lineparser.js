@@ -10,6 +10,8 @@ define(function (require) {
 var Stream = require("node-shims").Stream,
     utillib = require("node-shims").util;
 
+require('setimmediate');
+
 /**
  * Creates a reusable parser for parsing. It is a writable stream for piping
  * data directly in.
@@ -100,8 +102,8 @@ IMAPLineParser.prototype.end = function(chunk){
         }
     }
 
-    process.nextTick(this.emit.bind(this, "log", this._currentLine));
-    process.nextTick(this.emit.bind(this, "line", this.finalize()));
+    setImmediate(this.emit.bind(this, "log", this._currentLine));
+    setImmediate(this.emit.bind(this, "line", this.finalize()));
     this._init();
 };
 

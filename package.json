@@ -9,6 +9,7 @@
     "main": "src/inbox.js",
     "dependencies": {
         "amdefine": ">=0.0.8",
+        "setimmediate": ">=1.0.1",
         "utf7": "https://github.com/whiteout-io/utf7/tarball/amd",
         "xoauth2": "https://github.com/whiteout-io/xoauth2/tarball/amd",
         "mimelib": "https://github.com/whiteout-io/mimelib/tarball/amd",
