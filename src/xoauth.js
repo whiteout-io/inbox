@@ -7,8 +7,9 @@ define(function(require) {
     // this module is inspired by xoauth.py
     // http://code.google.com/p/google-mail-xoauth-tools/
 
-    var crypto = require("crypto"),
-        Buffer = require('node-shims').Buffer;
+    var shims = require('node-shims'),
+        crypto = shims.crypto,
+        Buffer = shims.Buffer;
 
     /**
      * Create a XOAUTH login token generator
