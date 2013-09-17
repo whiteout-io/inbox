@@ -1,6 +1,7 @@
 if (typeof define !== 'function') { var define = require('amdefine')(module); }
 
 define(function (require) {
+'use strict';
 
 var mailboxNames = {
     "sent": ["aika", "bidaliak", "bidalita", "dihantar", "e rometsweng", "e tindami", "elküldött", "elküldöttek", "enviadas", "enviadas", "enviados", "enviats", "envoyés", "ethunyelweyo", "expediate", "ezipuru", "gesendete", "gestuur", "gönderilmiş öğeler", "göndərilənlər", "iberilen", "inviati", "išsiųstieji", "kuthunyelwe", "lasa", "lähetetyt", "messages envoyés", "naipadala", "nalefa", "napadala", "nosūtītās ziņas", "odeslané", "padala", "poslane", "poslano", "poslano", "poslané", "poslato", "saadetud", "saadetud kirjad", "sendt", "sendt", "sent", "sent items", "sent messages", "sända poster", "sänt", "terkirim", "ti fi ranṣẹ", "të dërguara", "verzonden", "vilivyotumwa", "wysłane", "đã gửi", "σταλθέντα", "жиберилген", "жіберілгендер", "изпратени", "илгээсэн", "ирсол шуд", "испратено", "надіслані", "отправленные", "пасланыя", "юборилган", "ուղարկված", "נשלחו", "פריטים שנשלחו", "المرسلة", "بھیجے گئے", "سوزمژہ", "لېګل شوی", "موارد ارسال شده", "पाठविले", "पाठविलेले", "प्रेषित", "भेजा गया", "প্রেরিত", "প্রেরিত", "প্ৰেৰিত", "ਭੇਜੇ", "મોકલેલા", "ପଠାଗଲା", "அனுப்பியவை", "పంపించబడింది", "ಕಳುಹಿಸಲಾದ", "അയച്ചു", "යැවු පණිවුඩ", "ส่งแล้ว", "გაგზავნილი", "የተላኩ", "បាន​ផ្ញើ", "寄件備份", "寄件備份", "已发信息", "送信済みﾒｰﾙ", "발신 메시지", "보낸 편지함"],
@@ -23,10 +24,10 @@ function Mailbox(options){
         value: options.client || {},
         enumerable: false
     });
-
     Object.defineProperty(this, "tags", {
         value: options.tags || [],
-        enumerable: false
+        enumerable: false,
+        writable: true
     });
 
     this.name = options.name || "";
