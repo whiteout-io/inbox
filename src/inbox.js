@@ -2042,17 +2042,13 @@ define(function(require) {
         }
 
         uid = options.uid;
-        part = options.part;
+        part = options.part || '';
 
         if (typeof uid !== 'number') {
             setImmediate(this.emit.bind(this, new Error("Invalid UID value")));
             return;
         }
 
-        if (typeof part === 'undefined') {
-            part = '';
-            return;
-        }
 
         this._send("UID FETCH " + uid + ":" + uid + " BODY.PEEK[" + part + "]", (function(status) {
             this._collectMailList = false;
