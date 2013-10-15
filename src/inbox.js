@@ -2,7 +2,7 @@ if (typeof define !== 'function') {
     var define = require('amdefine')(module);
 }
 
-define(function(require) {
+define(function (require) {
     'use strict';
 
     // TODO: On error close the connection when needed
@@ -37,7 +37,7 @@ define(function(require) {
      * @memberOf inbox
      * @param {Number} port IMAP server port to connect to
      * @param {String} host IMAP server hostname
-     * @param {Object} options Options object for authentication etc.
+     * @param {Object} options Options object for authentication, timeouts, etc.
      */
 
     function createConnection(port, host, options) {
@@ -62,11 +62,13 @@ define(function(require) {
      * @memberOf inbox
      * @param {Number} port IMAP server port to connect to
      * @param {String} host IMAP server hostname
-     * @param {String} options Options object for authentication etc.
+     * @param {String} options Options object for authentication, timeouts, etc.
      */
 
     function IMAPClient(port, host, options) {
         Stream.call(this);
+
+        this.Mailbox = Mailbox;
 
         /**
          * Make this stream writeable. For future reference only, currently not needed
@@ -97,6 +99,12 @@ define(function(require) {
          * If set to true, print traffic between client and server to the console
          */
         this.debug = !! this.options.debug;
+
+        /**
+         * Timeout when waiting for server response
+         * @type {Number}
+         */
+        this.timeout = options.timeout || 5000;
 
         /**
          * XOAuth2 token generator if XOAUTH2 auth is used
@@ -158,7 +166,7 @@ define(function(require) {
     /**
      * Reset instance variables
      */
-    IMAPClient.prototype._init = function() {
+    IMAPClient.prototype._init = function () {
 
         /**
          * Should the connection be over TLS or NET
@@ -267,6 +275,11 @@ define(function(require) {
          * Timeout to wait for a successful greeting from the server
          */
         this._greetingTimeout = false;
+
+        /**
+         * Timeout to wait for a server response
+         */
+        this._timeoutId = false;
 
         /**
          * Server ID
@@ -378,7 +391,7 @@ define(function(require) {
     /**
      * Connect to the server using either TLS or NET
      */
-    IMAPClient.prototype.connect = function() {
+    IMAPClient.prototype.connect = function () {
 
         if (this.options.secureConnection) {
             this._connection = tls.connect(this.port, this.host, {
@@ -401,7 +414,7 @@ define(function(require) {
      *
      * @event
      */
-    IMAPClient.prototype._onConnect = function() {
+    IMAPClient.prototype._onConnect = function () {
 
         if (this.debug) {
             console.log("Connection to server opened");
@@ -428,7 +441,9 @@ define(function(require) {
      * @event
      * @param {Buffer} chunk incoming binary data chunk
      */
-    IMAPClient.prototype._onData = function(chunk) {
+    IMAPClient.prototype._onData = function (chunk) {
+        this._disarmTimeout();
+
         if (this._ignoreData) {
             // TLS negotiations going on, ignore everything received
             return;
@@ -516,7 +531,7 @@ define(function(require) {
      * 'close' event when disconnected from the server
      * @event
      */
-    IMAPClient.prototype._onClose = function() {
+    IMAPClient.prototype._onClose = function () {
         if (this.debug) {
             console.log("EVENT: CLOSE");
         }
@@ -528,7 +543,7 @@ define(function(require) {
      * 'end' event when disconnected from the server
      * @event
      */
-    IMAPClient.prototype._onEnd = function() {
+    IMAPClient.prototype._onEnd = function () {
         this.emit("end");
 
         if (this.debug) {
@@ -542,7 +557,7 @@ define(function(require) {
      * 'error' event, re-emit it
      * @event
      */
-    IMAPClient.prototype._onError = function(error) {
+    IMAPClient.prototype._onError = function (error) {
         this.emit("error", error);
     };
 
@@ -556,7 +571,7 @@ define(function(require) {
      *
      * @param {Array} data Parsed command, split into parameters
      */
-    IMAPClient.prototype._onServerResponse = function(data) {
+    IMAPClient.prototype._onServerResponse = function (data) {
         this._currentHandler(data);
     };
 
@@ -565,7 +580,7 @@ define(function(require) {
      *
      * @param {String} data IMAP command line
      */
-    IMAPClient.prototype._onServerLog = function(type, data) {
+    IMAPClient.prototype._onServerLog = function (type, data) {
         this._log.unshift((type ? type + ": " : "") + (data || "").toString().trim());
         if (this._log.length > this._logLength) {
             this._log.pop();
@@ -579,7 +594,7 @@ define(function(require) {
      *
      * @param {Array} data Parsed command
      */
-    IMAPClient.prototype._handlerGreeting = function(data) {
+    IMAPClient.prototype._handlerGreeting = function (data) {
         clearTimeout(this._greetingTimeout);
 
         if (!data || !Array.isArray(data)) {
@@ -601,11 +616,31 @@ define(function(require) {
         this._send("CAPABILITY", this._handlerTaggedCapability.bind(this));
     };
 
+    IMAPClient.prototype._armTimeout = function (callback) {
+        var cb = (function () {
+            var error = new Error("Timeout while waiting for a server response");
+            this.emit('error', error);
+            if (callback) {
+                callback(error);
+            }
+        }).bind(this);
+        this._timeoutId = setTimeout(cb, this.timeout);
+    };
+
+    IMAPClient.prototype._disarmTimeout = function () {
+        if (!this._timeoutId) {
+            return;
+        }
+
+        clearTimeout(this._timeoutId);
+        this._timeoutId = null;
+    };
+
     /**
      * When the greeting is not received in GREETING_TIMEOUT time,
      * emit an error and close the socket
      */
-    IMAPClient.prototype._handleGreetingTimeout = function() {
+    IMAPClient.prototype._handleGreetingTimeout = function () {
         var error = new Error("Timeout waiting for a greeting");
         error.errorType = "TimeoutError";
         this.emit("error", error);
@@ -617,7 +652,7 @@ define(function(require) {
      *
      * @param {Array} data Parsed command
      */
-    IMAPClient.prototype._responseRouter = function(data) {
+    IMAPClient.prototype._responseRouter = function (data) {
         if (!data || !Array.isArray(data)) {
             return;
         }
@@ -644,50 +679,50 @@ define(function(require) {
         // handle untagged commands (tagged with *)
         if (data[0] == "*") {
             switch (data[1]) {
-                case "CAPABILITY":
-                    this._handlerUntaggedCapability(data.slice(2));
-                    return;
-                case "ID":
-                    this._handlerUntaggedId(data.slice(2));
-                    return;
-                case "ENABLED":
-                    this._handlerUntaggedEnabled(data.slice(2));
-                    return;
-                case "FLAGS":
-                    this._selectedMailbox.flags = data[2] || [];
-                    return;
-                case "SEARCH":
-                    this._handlerUntaggedSearch(data.slice(2));
-                    return;
-                case "XLIST":
-                case "LIST":
-                    this._handlerUntaggedList(data.slice(2));
-                    return;
-                case "LSUB":
-                    this._handlerUntaggedLsub(data.slice(2));
-                    return;
-                case "OK":
-                    if (typeof data[2] == "object") {
-                        if (Array.isArray(data[2].params)) {
-                            if (data[2].params[0] == "UIDVALIDITY") {
-                                this._selectedMailbox.UIDValidity = data[2].params[1];
-                                return;
-                            } else if (data[2].params[0] == "UIDNEXT") {
-                                this._selectedMailbox.UIDNext = data[2].params[1];
-                                return;
-                            } else if (data[2].params[0] == "HIGHESTMODSEQ") {
-                                this._selectedMailbox.highestModSeq = Number(data[2].params[1]);
-                                return;
-                            } else if (data[2].params[0] == "UNSEEN") {
-                                this._selectedMailbox.unseen = data[2].params[1];
-                                return;
-                            } else if (data[2].params[0] == "PERMANENTFLAGS") {
-                                this._selectedMailbox.permanentFlags = data[2].params[1] || [];
-                                return;
-                            }
+            case "CAPABILITY":
+                this._handlerUntaggedCapability(data.slice(2));
+                return;
+            case "ID":
+                this._handlerUntaggedId(data.slice(2));
+                return;
+            case "ENABLED":
+                this._handlerUntaggedEnabled(data.slice(2));
+                return;
+            case "FLAGS":
+                this._selectedMailbox.flags = data[2] || [];
+                return;
+            case "SEARCH":
+                this._handlerUntaggedSearch(data.slice(2));
+                return;
+            case "XLIST":
+            case "LIST":
+                this._handlerUntaggedList(data.slice(2));
+                return;
+            case "LSUB":
+                this._handlerUntaggedLsub(data.slice(2));
+                return;
+            case "OK":
+                if (typeof data[2] == "object") {
+                    if (Array.isArray(data[2].params)) {
+                        if (data[2].params[0] == "UIDVALIDITY") {
+                            this._selectedMailbox.UIDValidity = data[2].params[1];
+                            return;
+                        } else if (data[2].params[0] == "UIDNEXT") {
+                            this._selectedMailbox.UIDNext = data[2].params[1];
+                            return;
+                        } else if (data[2].params[0] == "HIGHESTMODSEQ") {
+                            this._selectedMailbox.highestModSeq = Number(data[2].params[1]);
+                            return;
+                        } else if (data[2].params[0] == "UNSEEN") {
+                            this._selectedMailbox.unseen = data[2].params[1];
+                            return;
+                        } else if (data[2].params[0] == "PERMANENTFLAGS") {
+                            this._selectedMailbox.permanentFlags = data[2].params[1] || [];
+                            return;
                         }
                     }
-                    return;
+                }
+                return;
             }
 
             if (!isNaN(data[1]) && data[2] == "FETCH") {
@@ -723,7 +758,7 @@ define(function(require) {
      * @param {Function} [callback] Callback function to run when the command is completed
      * @param {Function} [prewrite] Function to run before the command is sent
      */
-    IMAPClient.prototype._send = function(data, callback, prewrite) {
+    IMAPClient.prototype._send = function (data, callback, prewrite) {
         data = (data || "").toString();
         var tag = "A" + (++this._tagCounter);
 
@@ -742,7 +777,7 @@ define(function(require) {
     /**
      * Send a command form the command queue to the server
      */
-    IMAPClient.prototype._processCommandQueue = function() {
+    IMAPClient.prototype._processCommandQueue = function () {
 
         if (!this._commandQueue.length || !this._connection) {
             return;
@@ -779,7 +814,7 @@ define(function(require) {
 
         this._currentRequest = {
             tag: command.tag,
-            callback: (function(status, params) {
+            callback: (function (status, params) {
 
                 clearTimeout(this._shouldIdleTimer);
                 clearTimeout(this._idleTimer);
@@ -805,7 +840,7 @@ define(function(require) {
      *
      * @param {String} status If "OK" then the command succeeded
      */
-    IMAPClient.prototype._handlerTaggedCapability = function(status) {
+    IMAPClient.prototype._handlerTaggedCapability = function (status) {
         if (status == "OK") {
             if (!this._secureMode && this._capabilities.indexOf("STARTTLS") >= 0) {
                 this._send("STARTTLS", this._handlerTaggedStartTLS.bind(this));
@@ -828,10 +863,10 @@ define(function(require) {
      *
      * @param {String} status If "OK" then the command succeeded
      */
-    IMAPClient.prototype._handlerTaggedStartTLS = function(status) {
+    IMAPClient.prototype._handlerTaggedStartTLS = function (status) {
         if (status == "OK") {
             this._ignoreData = true;
-            starttls(this._connection, (function(socket) {
+            starttls(this._connection, (function (socket) {
 
                 this._connection = socket;
                 this._ignoreData = false;
@@ -860,7 +895,7 @@ define(function(require) {
      *
      * @param {String} status If "OK" then the command succeeded
      */
-    IMAPClient.prototype._handlerTaggedLogin = function(status) {
+    IMAPClient.prototype._handlerTaggedLogin = function (status) {
         if (status == "OK") {
             this._xoauth2RetryCount = 0;
             this._xoauth2UntaggedResponse = false;
@@ -872,7 +907,7 @@ define(function(require) {
             }
         } else {
             if (this._xoauth2 && this._xoauth2UntaggedResponse && this._xoauth2RetryCount && this._xoauth2RetryCount < 3) {
-                this._xoauth2.generateToken((function(err, token) {
+                this._xoauth2.generateToken((function (err, token) {
                     if (err) {
                         if (typeof err != "object") {
                             var error = new Error(err.toString());
@@ -903,7 +938,7 @@ define(function(require) {
      *
      * @param {String} status If "OK" then the command succeeded
      */
-    IMAPClient.prototype._handlerTaggedId = function(status) {
+    IMAPClient.prototype._handlerTaggedId = function (status) {
         this._postReady();
     };
 
@@ -914,7 +949,7 @@ define(function(require) {
      *
      * @param {String} status If "OK" then the command succeeded
      */
-    IMAPClient.prototype._handlerTaggedCondstore = function(status) {
+    IMAPClient.prototype._handlerTaggedCondstore = function (status) {
         var clientData = {
             name: X_CLIENT_NAME,
             version: X_CLIENT_VERSION,
@@ -922,12 +957,12 @@ define(function(require) {
         };
 
         if (this.options.clientId) {
-            Object.keys(this.options.clientId).forEach((function(key) {
+            Object.keys(this.options.clientId).forEach((function (key) {
                 clientData[key] = this.options.clientId[key];
             }).bind(this));
         }
 
-        clientData = Object.keys(clientData).map((function(key) {
+        clientData = Object.keys(clientData).map((function (key) {
             return this._escapeString(key) + " " + this._escapeString(clientData[key]);
         }).bind(this)).join(" ");
 
@@ -943,7 +978,7 @@ define(function(require) {
      *
      * @param {String} status If "OK" then the command succeeded
      */
-    IMAPClient.prototype._handlerTaggedLsub = function(xinfo, callback, status) {
+    IMAPClient.prototype._handlerTaggedLsub = function (xinfo, callback, status) {
         if (status != "OK") {
             if (typeof callback == "function") {
                 callback(new Error("Mailbox listing failed"));
@@ -1010,7 +1045,7 @@ define(function(require) {
      * @param {String} status If "OK" then the command succeeded
      * @params {Array} params Parsed params excluding tag and SELECT
      */
-    IMAPClient.prototype._handlerTaggedSelect = function(callback, status, params) {
+    IMAPClient.prototype._handlerTaggedSelect = function (callback, status, params) {
         if (status == "OK") {
             this._currentState = this.states.SELECTED;
 
@@ -1051,7 +1086,7 @@ define(function(require) {
      *
      * @param {Array} list Params for "* CAPABILITY" as an array
      */
-    IMAPClient.prototype._handlerUntaggedCapability = function(list) {
+    IMAPClient.prototype._handlerUntaggedCapability = function (list) {
         this._updatedCapabilities = true;
         this._capabilities = list;
     };
@@ -1061,7 +1096,7 @@ define(function(require) {
      *
      * @param {Array} list Params
      */
-    IMAPClient.prototype._handlerUntaggedId = function(list) {
+    IMAPClient.prototype._handlerUntaggedId = function (list) {
         list = (list || [])[0] || [];
         var key;
         for (var i = 0, len = list.length; i < len; i++) {
@@ -1078,7 +1113,7 @@ define(function(require) {
      *
      * @param {Array} list Params
      */
-    IMAPClient.prototype._handlerUntaggedEnabled = function(list) {
+    IMAPClient.prototype._handlerUntaggedEnabled = function (list) {
         list = [].concat(list || []);
 
         if (list[0] == "CONDSTORE") {
@@ -1093,7 +1128,7 @@ define(function(require) {
      *
      * @param {Array} list Params for LIST
      */
-    IMAPClient.prototype._handlerUntaggedList = function(list) {
+    IMAPClient.prototype._handlerUntaggedList = function (list) {
         var tags = list.shift() || [],
             delimiter = list.shift() || this._mailboxDelimiter,
             path = (list.shift() || "").substr(this._rootPath.length),
@@ -1116,7 +1151,7 @@ define(function(require) {
      *
      * @param {Array} list Params for LIST
      */
-    IMAPClient.prototype._handlerUntaggedLsub = function(list) {
+    IMAPClient.prototype._handlerUntaggedLsub = function (list) {
         var tags = list.shift() || [],
             delimiter = list.shift() || this._mailboxDelimiter,
             path = (list.shift() || "").substr(this._rootPath.length),
@@ -1142,7 +1177,7 @@ define(function(require) {
     /**
      * Handle untagged IDLE, this means that idle mode has been entered.
      */
-    IMAPClient.prototype._handlerUntaggedIdle = function() {
+    IMAPClient.prototype._handlerUntaggedIdle = function () {
         this._idleWait = false;
         this.idling = true;
         if (this._shouldCheckOnIdle) {
@@ -1155,7 +1190,7 @@ define(function(require) {
     /**
      * Handle search responses
      */
-    IMAPClient.prototype._handlerUntaggedSearch = function(list) {
+    IMAPClient.prototype._handlerUntaggedSearch = function (list) {
         this._uids = list;
     };
 
@@ -1163,7 +1198,7 @@ define(function(require) {
      * Returns the number of unread messages in a callback
      * @param  {Function} callback(error, unreadCount) invoked with the number of unread messages, or an error object if an error occurred
      */
-    IMAPClient.prototype.unreadMessages = function(callback) {
+    IMAPClient.prototype.unreadMessages = function (callback) {
         this._uids = [];
         if (this._currentState != this.states.SELECTED) {
             if (typeof callback == "function") {
@@ -1172,7 +1207,7 @@ define(function(require) {
             return;
         }
 
-        this._send('SEARCH UNSEEN', (function(status) {
+        this._send('SEARCH UNSEEN', (function (status) {
             if (typeof callback != "function") {
                 return;
             }
@@ -1182,7 +1217,7 @@ define(function(require) {
             }
 
             callback(null, this._uids.length);
-        }).bind(this));
+        }).bind(this), this._armTimeout.bind(this, callback));
     };
 
     /**
@@ -1190,7 +1225,7 @@ define(function(require) {
      *
      * @param {Array} list Params about a message
      */
-    IMAPClient.prototype._handlerUntaggedFetch = function(list) {
+    IMAPClient.prototype._handlerUntaggedFetch = function (list) {
         var envelope = (list || [])[3] || [],
             envelopeData = this._formatEnvelope(envelope),
             nextUID = Number(this._selectedMailbox.UIDNext) || 0,
@@ -1215,7 +1250,7 @@ define(function(require) {
      * Timeout function for idle mode - if sufficient time has passed, break the
      * idle and run NOOP. After this, re-enter IDLE
      */
-    IMAPClient.prototype._idleTimeout = function() {
+    IMAPClient.prototype._idleTimeout = function () {
         this._send("NOOP", this.idle.bind(this));
     };
 
@@ -1225,12 +1260,12 @@ define(function(require) {
      * Run after CAPABILITY response is received. If in PREAUTH state, initiate login,
      * if in AUTH mode, run _postAuth
      */
-    IMAPClient.prototype._postCapability = function() {
+    IMAPClient.prototype._postCapability = function () {
         if (this._currentState == this.states.PREAUTH) {
             this._updatedCapabilities = false;
 
             if (this._capabilities.indexOf("AUTH=XOAUTH2") >= 0 && this._xoauth2) {
-                this._xoauth2.getToken((function(err, token) {
+                this._xoauth2.getToken((function (err, token) {
                     if (err) {
                         if (typeof err != "object") {
                             var error = new Error(err.toString());
@@ -1243,9 +1278,9 @@ define(function(require) {
                         return;
                     }
                     this._send("AUTHENTICATE XOAUTH2 " + token,
-                        this._handlerTaggedLogin.bind(this), (function() {
+                        this._handlerTaggedLogin.bind(this), (function () {
                             this._xoauth2UntaggedResponse = false;
-                            this._literalHandler = (function(message) {
+                            this._literalHandler = (function (message) {
 
                                 this._xoauth2UntaggedResponse = true;
 
@@ -1293,7 +1328,7 @@ define(function(require) {
     /**
      * Run when user is successfully entered AUTH state
      */
-    IMAPClient.prototype._postAuth = function() {
+    IMAPClient.prototype._postAuth = function () {
         if (this._capabilities.indexOf("CONDSTORE") >= 0) {
             this._send("ENABLE CONDSTORE", this._handlerTaggedCondstore.bind(this));
         } else {
@@ -1307,7 +1342,7 @@ define(function(require) {
      *
      * @param {Object} err Error object, if an error appeared
      */
-    IMAPClient.prototype._postReady = function(err) {
+    IMAPClient.prototype._postReady = function (err) {
         if (err) {
             this.emit("error", err);
         } else {
@@ -1322,7 +1357,7 @@ define(function(require) {
      *
      * @param {String} str String to escape
      */
-    IMAPClient.prototype._escapeString = function(str) {
+    IMAPClient.prototype._escapeString = function (str) {
         return "\"" + (str || "").toString().replace(/(["\\])/g, "\\$1").replace(/[\r\n]/g, " ") + "\"";
     };
 
@@ -1332,7 +1367,7 @@ define(function(require) {
      * @param {Array} envelopeData An array with FLAGS and ENVELOPE response data
      * @return {Object} structured envelope data
      */
-    IMAPClient.prototype._formatEnvelope = function(envelopeData) {
+    IMAPClient.prototype._formatEnvelope = function (envelopeData) {
         if (!Array.isArray(envelopeData)) {
             return null;
         }
@@ -1379,11 +1414,11 @@ define(function(require) {
             messageTypePreferenceOrder = ["Sent", "Draft", "Starred", "Junk", "Trash"];
 
         if (dataObject["X-GM-LABELS"]) {
-            message.folders = (dataObject["X-GM-LABELS"] || []).map((function(label) {
+            message.folders = (dataObject["X-GM-LABELS"] || []).map((function (label) {
                 var type;
 
                 if (label && typeof label == "object" && label.params) {
-                    label = label.params.map((function(localLabel) {
+                    label = label.params.map((function (localLabel) {
                         localLabel = this._convertFromUTF7(localLabel || "");
                         messageTypes.push(localLabel);
                         return localLabel;
@@ -1401,7 +1436,7 @@ define(function(require) {
                 }
 
                 if (label.search(this._mailboxDelimiter) > 0) { // ignore the first char
-                    return label.split(this._mailboxDelimiter).map(function(localLabel) {
+                    return label.split(this._mailboxDelimiter).map(function (localLabel) {
                         var localType;
                         if ((localType = detectMailboxType(localLabel)) != "Normal") {
                             messageTypes.push(localType);
@@ -1436,7 +1471,7 @@ define(function(require) {
             }
 
             if (message.folders.length) {
-                [].concat(message.folders[0]).forEach((function(localLabel) {
+                [].concat(message.folders[0]).forEach((function (localLabel) {
                     var type;
                     if ((type = detectMailboxType(localLabel)) != "Normal") {
                         // Add flag indicator
@@ -1461,11 +1496,11 @@ define(function(require) {
             }
         }
 
-        messageTypes = messageTypes.map(function(type) {
+        messageTypes = messageTypes.map(function (type) {
             return messageTypeMap[type] || type;
         });
 
-        messageTypes.sort(function(a, b) {
+        messageTypes.sort(function (a, b) {
             a = messageTypePreferenceOrder.indexOf(a);
             b = messageTypePreferenceOrder.indexOf(b);
             if (a < 0) {
@@ -1487,7 +1522,7 @@ define(function(require) {
 
             message.title = (dataObject.ENVELOPE[1] || "").toString().
             replace(/\=\?[^?]+\?[QqBb]\?[^?]+\?=/g,
-                function(mimeWord) {
+                function (mimeWord) {
                     return mimelib.decodeMimeWord(mimeWord);
                 });
             if (dataObject.ENVELOPE[2] && dataObject.ENVELOPE[2].length) {
@@ -1520,7 +1555,7 @@ define(function(require) {
      * @param {Array} address IMAP ENVELOPE address array [name, smtp route, user, domain]
      * @return {Object} simple {name, address} format
      */
-    IMAPClient.prototype._formatEnvelopeAddress = function(address) {
+    IMAPClient.prototype._formatEnvelopeAddress = function (address) {
         var name = address[0],
             email = (address[2] || "") + "@" + (address[3] || "");
 
@@ -1530,7 +1565,7 @@ define(function(require) {
 
         return {
             name: (name || email).replace(/\=\?[^?]+\?[QqBb]\?[^?]+\?=/g,
-                function(mimeWord) {
+                function (mimeWord) {
                     return mimelib.decodeMimeWord(mimeWord);
                 }),
             address: email
@@ -1540,22 +1575,23 @@ define(function(require) {
     /**
      * Convert from IMAP UTF7 to UTF-8 - useful for mailbox names
      */
-    IMAPClient.prototype._convertFromUTF7 = function(str) {
+    IMAPClient.prototype._convertFromUTF7 = function (str) {
         return utf7.decode(str);
     };
 
     /**
      * Check for new mail, since the last known UID
      */
-    IMAPClient.prototype._checkNewMail = function() {
+    IMAPClient.prototype._checkNewMail = function () {
         if (isNaN(this._selectedMailbox.UIDNext)) {
             return;
         }
 
-        this._send("UID FETCH " + this._selectedMailbox.UIDNext + ":* (FLAGS ENVELOPE" + (this._capabilities.indexOf("X-GM-EXT-1") >= 0 ? " X-GM-LABELS X-GM-THRID" : "") + ")", (function() {
+        this._send("UID FETCH " + this._selectedMailbox.UIDNext + ":* (FLAGS ENVELOPE" + (this._capabilities.indexOf("X-GM-EXT-1") >= 0 ? " X-GM-LABELS X-GM-THRID" : "") + ")", (function () {
             this._checkForNewMail = false;
-        }).bind(this), (function() {
+        }).bind(this), (function () {
             this._checkForNewMail = true;
+            this._armTimeout.bind(callback);
         }).bind(this));
     };
 
@@ -1566,7 +1602,7 @@ define(function(require) {
      *
      * @param {Function} callback Callback function to run with the mailbox list
      */
-    IMAPClient.prototype.listMailboxes = function(callback) {
+    IMAPClient.prototype.listMailboxes = function (callback) {
         this._rootMailbox.listChildren(callback);
     };
 
@@ -1578,7 +1614,7 @@ define(function(require) {
      * @param {Boolean} [options.readOnly] If set to true, open the mailbox in read-only mode (seen/unseen flags won't be touched)
      * @param {Function} callback Callback function to run when the mailbox is opened
      */
-    IMAPClient.prototype.openMailbox = function(path, options, callback) {
+    IMAPClient.prototype.openMailbox = function (path, options, callback) {
         var command = "SELECT";
 
         if (typeof options == "function" && !callback) {
@@ -1602,9 +1638,10 @@ define(function(require) {
             path: path
         };
 
-        this._send(command + " " + this._escapeString(path) + (
-            this._condstoreEnabled ? " (CONDSTORE)" : ""
-        ), this._handlerTaggedSelect.bind(this, callback));
+        this._send(command + " " + this._escapeString(path) + (this._condstoreEnabled ? " (CONDSTORE)" : ""),
+            this._handlerTaggedSelect.bind(this, callback),
+            this._armTimeout.bind(this, callback)
+        );
     };
 
     /**
@@ -1612,7 +1649,7 @@ define(function(require) {
      *
      * @return {Object} Information about currently selected mailbox
      */
-    IMAPClient.prototype.getCurrentMailbox = function() {
+    IMAPClient.prototype.getCurrentMailbox = function () {
         return this._selectedMailbox;
     };
 
@@ -1624,7 +1661,7 @@ define(function(require) {
      * @param {Number} limit How many messages to fetch, defaults to all from selected position
      * @param {Function} callback Callback function to run with the listed envelopes
      */
-    IMAPClient.prototype.listMessages = function(from, limit, extendedOptions, callback) {
+    IMAPClient.prototype.listMessages = function (from, limit, extendedOptions, callback) {
         var to;
 
         from = Number(from) || 0;
@@ -1677,7 +1714,7 @@ define(function(require) {
             "FETCH " + from + ":" + to +
             " (UID FLAGS ENVELOPE" +
             (this._capabilities.indexOf("X-GM-EXT-1") >= 0 ? " X-GM-LABELS X-GM-THRID" : "") + ")" +
-            (extendedOptions ? " " + extendedOptions : ""), (function(status) {
+            (extendedOptions ? " " + extendedOptions : ""), (function (status) {
                 this._collectMailList = false;
 
                 if (typeof callback != "function") {
@@ -1689,7 +1726,7 @@ define(function(require) {
                 } else {
                     callback(new Error("Error fetching list"));
                 }
-            }).bind(this));
+            }).bind(this), this._armTimeout.bind(this, callback));
     };
 
     /**
@@ -1700,7 +1737,7 @@ define(function(require) {
      * @param {Number} limit How many messages to fetch, defaults to all from selected position
      * @param {Function} callback Callback function to run with the listed envelopes
      */
-    IMAPClient.prototype.listFlags = function(from, limit, callback) {
+    IMAPClient.prototype.listFlags = function (from, limit, callback) {
         var to;
 
         from = Number(from) || 0;
@@ -1737,7 +1774,7 @@ define(function(require) {
 
         this._collectMailList = true;
         this._mailList = [];
-        this._send("FETCH " + from + ":" + to + " (UID FLAGS)", (function(status) {
+        this._send("FETCH " + from + ":" + to + " (UID FLAGS)", (function (status) {
             this._collectMailList = false;
 
             if (typeof callback != "function") {
@@ -1749,7 +1786,7 @@ define(function(require) {
             } else {
                 callback(new Error("Error fetching list"));
             }
-        }).bind(this));
+        }).bind(this), this._armTimeout.bind(this, callback));
     };
 
     /**
@@ -1760,7 +1797,7 @@ define(function(require) {
      * @param {String} [updateType=""] If empty, replace flags; + add flag; - remove flag
      * @param {Function} callback Callback function to run, returns an array of flags
      */
-    IMAPClient.prototype.updateFlags = function(uid, flags, updateType, callback) {
+    IMAPClient.prototype.updateFlags = function (uid, flags, updateType, callback) {
         uid = Number(uid) || 0;
         flags = [].concat(flags || []);
 
@@ -1792,7 +1829,7 @@ define(function(require) {
             return;
         }
 
-        this._send("UID STORE " + uid + ":" + uid + " " + updateType + "FLAGS (" + flags.join(" ") + ")", (function(status) {
+        this._send("UID STORE " + uid + ":" + uid + " " + updateType + "FLAGS (" + flags.join(" ") + ")", (function (status) {
             this._collectMailList = false;
 
             if (typeof callback != "function") {
@@ -1811,7 +1848,8 @@ define(function(require) {
                 }
             }
 
-        }).bind(this), (function() {
+        }).bind(this), (function () {
+            this._armTimeout(callback);
             this._collectMailList = true;
             this._mailList = [];
         }).bind(this));
@@ -1824,7 +1862,7 @@ define(function(require) {
      * @param {Array} flags Flags to set for a message
      * @param {Function} callback Callback function to run, returns an array of flags
      */
-    IMAPClient.prototype.addFlags = function(uid, flags, callback) {
+    IMAPClient.prototype.addFlags = function (uid, flags, callback) {
         flags = [].concat(flags || []);
         this.updateFlags(uid, flags, "+", callback);
     };
@@ -1836,7 +1874,7 @@ define(function(require) {
      * @param {Array} flags Flags to remove from a message
      * @param {Function} callback Callback function to run, returns an array of flags
      */
-    IMAPClient.prototype.removeFlags = function(uid, flags, callback) {
+    IMAPClient.prototype.removeFlags = function (uid, flags, callback) {
         flags = [].concat(flags || []);
         this.updateFlags(uid, flags, "-", callback);
     };
@@ -1849,7 +1887,7 @@ define(function(require) {
      * @param {String} [updateType=""] If empty, replace labels; + add label; - remove label
      * @param {Function} callback Callback function to run, returns an array of labels
      */
-    IMAPClient.prototype.updateLabels = function(uid, labels, updateType, callback) {
+    IMAPClient.prototype.updateLabels = function (uid, labels, updateType, callback) {
         uid = Number(uid) || 0;
         labels = [].concat(labels || []);
 
@@ -1881,7 +1919,7 @@ define(function(require) {
             return;
         }
 
-        this._send("UID STORE " + uid + ":" + uid + " " + updateType + "X-GM-LABELS (" + labels.join(" ") + ")", (function(status) {
+        this._send("UID STORE " + uid + ":" + uid + " " + updateType + "X-GM-LABELS (" + labels.join(" ") + ")", (function (status) {
             this._collectMailList = false;
 
             if (typeof callback != "function") {
@@ -1900,7 +1938,8 @@ define(function(require) {
                 }
             }
 
-        }).bind(this), (function() {
+        }).bind(this), (function () {
+            this._armTimeout(callback);
             this._collectMailList = true;
             this._mailList = [];
         }).bind(this));
@@ -1913,7 +1952,7 @@ define(function(require) {
      * @param {Array} labels Labels to set for a message
      * @param {Function} callback Callback function to run, returns an array of labels
      */
-    IMAPClient.prototype.addLabels = function(uid, labels, callback) {
+    IMAPClient.prototype.addLabels = function (uid, labels, callback) {
         labels = [].concat(labels || []);
         this.updateLabels(uid, labels, "+", callback);
     };
@@ -1925,7 +1964,7 @@ define(function(require) {
      * @param {Array} labels Labels to remove from a message
      * @param {Function} callback Callback function to run, returns an array of labels
      */
-    IMAPClient.prototype.removeLabels = function(uid, labels, callback) {
+    IMAPClient.prototype.removeLabels = function (uid, labels, callback) {
         labels = [].concat(labels || []);
         this.updateLabels(uid, labels, "-", callback);
     };
@@ -1936,7 +1975,7 @@ define(function(require) {
      * @param {Number} uid Message identifier
      * @param {Function} callback Callback function to run with the flags array
      */
-    IMAPClient.prototype.fetchFlags = function(uid, callback) {
+    IMAPClient.prototype.fetchFlags = function (uid, callback) {
         uid = Number(uid) || 0;
 
         if (!uid) {
@@ -1953,7 +1992,7 @@ define(function(require) {
             return;
         }
 
-        this._send("UID FETCH " + uid + ":" + uid + " (FLAGS)", (function(status) {
+        this._send("UID FETCH " + uid + ":" + uid + " (FLAGS)", (function (status) {
             this._collectMailList = false;
 
             if (typeof callback != "function") {
@@ -1972,7 +2011,8 @@ define(function(require) {
                 }
             }
 
-        }).bind(this), (function() {
+        }).bind(this), (function () {
+            this._armTimeout(callback);
             this._collectMailList = true;
             this._mailList = [];
         }).bind(this));
@@ -1984,7 +2024,7 @@ define(function(require) {
      * @param {Number} uid Message identifier
      * @param {Function} callback Callback function to run with the envelope object
      */
-    IMAPClient.prototype.fetchData = function(uid, callback) {
+    IMAPClient.prototype.fetchData = function (uid, callback) {
         uid = Number(uid) || 0;
 
         if (!uid) {
@@ -2001,7 +2041,7 @@ define(function(require) {
             return;
         }
 
-        this._send("UID FETCH " + uid + ":" + uid + " (FLAGS ENVELOPE" + (this._capabilities.indexOf("X-GM-EXT-1") >= 0 ? " X-GM-LABELS X-GM-THRID" : "") + ")", (function(status) {
+        this._send("UID FETCH " + uid + ":" + uid + " (FLAGS ENVELOPE" + (this._capabilities.indexOf("X-GM-EXT-1") >= 0 ? " X-GM-LABELS X-GM-THRID" : "") + ")", (function (status) {
             this._collectMailList = false;
 
             if (typeof callback != "function") {
@@ -2020,7 +2060,8 @@ define(function(require) {
                 }
             }
 
-        }).bind(this), (function() {
+        }).bind(this), (function () {
+            this._armTimeout(callback);
             this._collectMailList = true;
             this._mailList = [];
         }).bind(this));
@@ -2032,7 +2073,7 @@ define(function(require) {
      * @param {Number} options.uid Message identifier
      * @param {String} options.part (optional) The part of the message to be fetched according to RFC 3501 (e.g. '', 'HEADER', 'TEXT', '1')
      */
-    IMAPClient.prototype.createStream = function(options) {
+    IMAPClient.prototype.createStream = function (options) {
         var stream = new Stream(),
             uid, part;
 
@@ -2050,7 +2091,7 @@ define(function(require) {
         }
 
 
-        this._send("UID FETCH " + uid + ":" + uid + " BODY.PEEK[" + part + "]", (function(status) {
+        this._send("UID FETCH " + uid + ":" + uid + " BODY.PEEK[" + part + "]", (function (status) {
             this._collectMailList = false;
             this._literalStreaming = false;
 
@@ -2064,7 +2105,8 @@ define(function(require) {
 
             this._messageStream = null;
 
-        }).bind(this), (function() {
+        }).bind(this), (function () {
+            this._armTimeout();
             this._collectMailList = true;
             this._literalStreaming = true;
             this._mailList = [];
@@ -2081,7 +2123,7 @@ define(function(require) {
      * @param {String} destination Destination folder to copy the message to
      * @param {Function} callback Callback function to run after the copy succeeded or failed
      */
-    IMAPClient.prototype.copyMessage = function(uid, destination, callback) {
+    IMAPClient.prototype.copyMessage = function (uid, destination, callback) {
         uid = Number(uid) || 0;
 
         if (!uid) {
@@ -2098,12 +2140,12 @@ define(function(require) {
             return;
         }
 
-        this._send("UID COPY " + uid + " " + this._escapeString(destination), (function(status) {
+        this._send("UID COPY " + uid + " " + this._escapeString(destination), (function (status) {
             if (status != "OK") {
                 return callback(new Error("Error copying message"));
             }
             return callback(null, true);
-        }).bind(this));
+        }).bind(this), this._armTimeout.bind(this, callback));
     };
 
     /**
@@ -2112,7 +2154,7 @@ define(function(require) {
      * @param {Number} uid Message identifier
      * @param {Function} callback Callback function to run after the removal succeeded or failed
      */
-    IMAPClient.prototype.deleteMessage = function(uid, callback) {
+    IMAPClient.prototype.deleteMessage = function (uid, callback) {
         uid = Number(uid) || 0;
 
         if (!uid) {
@@ -2122,19 +2164,19 @@ define(function(require) {
             return;
         }
 
-        this.addFlags(uid, "\\Deleted", (function(error, flags) {
+        this.addFlags(uid, "\\Deleted", (function (error, flags) {
             if (error) {
                 return callback(error);
             }
 
-            this._send("EXPUNGE", (function(status) {
+            this._send("EXPUNGE", (function (status) {
                 if (status != "OK") {
                     return callback(new Error("Error removing message"));
                 }
                 return callback(null, true);
-            }).bind(this));
+            }).bind(this), this._armTimeout.bind(this, callback));
 
-        }).bind(this));
+        }).bind(this), this._armTimeout.bind(this, callback));
     };
 
     /**
@@ -2144,12 +2186,12 @@ define(function(require) {
      * @param {String} destination Destination folder to move the message to
      * @param {Function} callback Callback function to run after the move succeeded or failed
      */
-    IMAPClient.prototype.moveMessage = function(uid, destination, callback) {
-        this.copyMessage(uid, destination, (function(error) {
+    IMAPClient.prototype.moveMessage = function (uid, destination, callback) {
+        this.copyMessage(uid, destination, (function (error) {
             if (error) {
                 return callback(error);
             }
-            this.deleteMessage(uid, function(error) {
+            this.deleteMessage(uid, function (error) {
                 // we don't really care if the removal succeeded or not at this point
                 return callback(null, !error);
             });
@@ -2163,7 +2205,7 @@ define(function(require) {
      * beforehand, it is probably a good idea to include it in whole - easier
      * to implement and gives as total byte count
      */
-    IMAPClient.prototype.storeMessage = function(message, flags, callback) {
+    IMAPClient.prototype.storeMessage = function (message, flags, callback) {
         if (typeof flags == "function" && !callback) {
             callback = flags;
             flags = undefined;
@@ -2175,7 +2217,7 @@ define(function(require) {
         }
 
         flags = [].concat(flags || []);
-        this._send("APPEND " + this._escapeString(this._selectedMailbox.path) + (flags.length ? " (" + flags.join(" ") + ")" : "") + " {" + message.length + "}", (function(status, data) {
+        this._send("APPEND " + this._escapeString(this._selectedMailbox.path) + (flags.length ? " (" + flags.join(" ") + ")" : "") + " {" + message.length + "}", (function (status, data) {
             this._literalHandler = null;
             if (status == "OK") {
                 this._shouldCheckOnIdle = true;
@@ -2196,8 +2238,9 @@ define(function(require) {
             } else {
                 return callback(new Error("Error saving message to mailbox"));
             }
-        }).bind(this), (function() {
-            this._literalHandler = (function() {
+        }).bind(this), (function () {
+            this._armTimeout(callback);
+            this._literalHandler = (function () {
                 this._connection.write(message);
                 this._connection.write("\r\n");
             }).bind(this);
@@ -2207,8 +2250,8 @@ define(function(require) {
     /**
      *
      */
-    IMAPClient.prototype.getMailbox = function(path, callback) {
-        this._rootMailbox.listChildren(path, function(error, mailboxes) {
+    IMAPClient.prototype.getMailbox = function (path, callback) {
+        this._rootMailbox.listChildren(path, function (error, mailboxes) {
             if (error) {
                 callback(error);
             } else if (mailboxes && mailboxes.length) {
@@ -2222,12 +2265,12 @@ define(function(require) {
     /**
      * Enter IDLE mode
      */
-    IMAPClient.prototype.idle = function() {
+    IMAPClient.prototype.idle = function () {
         if (this._capabilities.indexOf("IDLE") >= 0) {
-            this._send("IDLE", (function(status) {
+            this._send("IDLE", (function (status) {
                 this.idling = false;
                 this._idleEnd = false;
-            }).bind(this), (function() {
+            }).bind(this), (function () {
                 this._idleWait = true;
                 this._idleEnd = false;
                 this._idleTimer = setTimeout(this._idleTimeout.bind(this), this.IDLE_TIMEOUT);
@@ -2236,10 +2279,10 @@ define(function(require) {
             if (this.debug) {
                 console.log("WARNING: Server does not support IDLE, fallback to NOOP");
             }
-            this._idleTimer = setTimeout((function() {
-                this._send("NOOP", (function(status) {
+            this._idleTimer = setTimeout((function () {
+                this._send("NOOP", (function (status) {
                     this.nooping = false;
-                }).bind(this), (function() {
+                }).bind(this), (function () {
                     this.nooping = true;
                 }).bind(this));
             }).bind(this), this.IDLE_TIMEOUT);
@@ -2250,7 +2293,7 @@ define(function(require) {
      * Closes the socket to the server
      * // FIXME - should LOGOUT first!
      */
-    IMAPClient.prototype._close = function() {
+    IMAPClient.prototype._close = function () {
         if (!this._connection) {
             return;
         }
@@ -2258,6 +2301,7 @@ define(function(require) {
         clearTimeout(this._shouldIdleTimer);
         clearTimeout(this._idleTimer);
         clearTimeout(this._greetingTimeout);
+        clearTimeout(this._timeoutId);
 
         var socket = this._connection.socket || this._connection;
 
@@ -2277,10 +2321,10 @@ define(function(require) {
     };
 
     // Calls LOGOUT
-    IMAPClient.prototype.close = function() {
-        this._send("LOGOUT", (function() {
+    IMAPClient.prototype.close = function () {
+        this._send("LOGOUT", (function () {
             this._close();
-        }).bind(this));
+        }).bind(this), this._armTimeout.bind(this));
     };
 
     return {
