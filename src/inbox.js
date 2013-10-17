@@ -1591,7 +1591,7 @@ define(function (require) {
             this._checkForNewMail = false;
         }).bind(this), (function () {
             this._checkForNewMail = true;
-            this._armTimeout.bind(callback);
+            this._armTimeout();
         }).bind(this));
     };
 
