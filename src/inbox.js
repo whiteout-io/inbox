@@ -1617,6 +1617,11 @@ define(function (require) {
     IMAPClient.prototype.openMailbox = function (path, options, callback) {
         var command = "SELECT";
 
+        if (typeof path !== "string") {
+            callback(new Error("Invalid mailbox path!"));
+            return;
+        }
+
         if (typeof options == "function" && !callback) {
             callback = options;
             options = undefined;
