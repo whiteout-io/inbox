@@ -2181,7 +2181,7 @@ define(function (require) {
                 return callback(null, true);
             }).bind(this), this._armTimeout.bind(this, callback));
 
-        }).bind(this), this._armTimeout.bind(this, callback));
+        }).bind(this));
     };
 
     /**
