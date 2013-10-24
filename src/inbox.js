@@ -1640,6 +1640,13 @@ define(function (require) {
 
         options = options || {};
 
+        if (this._selectedMailbox.path === path && (
+            (typeof options.readOnly === 'undefined' && this._selectedMailbox.readOnly === false) ||
+            (typeof options.readOnly !== 'undefined' && this._selectedMailbox.readOnly === options.readOnly))) {
+            callback(null, this._selectedMailbox);
+            return;
+        }
+
         if (options.readOnly) {
             command = "EXAMINE";
         }
