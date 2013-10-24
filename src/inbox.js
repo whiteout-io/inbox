@@ -769,7 +769,18 @@ define(function (require) {
             prewrite: prewrite
         });
 
-        if (this.idling || !this._currentRequest) {
+       this._processCommandQueueIfNotBusy();
+    };
+
+    /**
+     * Check if command queue is ready to be processed or if waiting for idle is still in place.
+     * This method exists due to a bug where calls are not popped from the stack in order.
+     *     1) inbox is in idle mode
+     *     2) fire 2 openMailbox calls in immediate succession
+     *     3) the first call never receives a callback and times out
+     */
+    IMAPClient.prototype._processCommandQueueIfNotBusy = function() {
+        if ((this.idling && !this._idleEnd) || !this._currentRequest) {
             this._processCommandQueue();
         }
     };
@@ -795,7 +806,7 @@ define(function (require) {
                 this._connection.write("DONE\r\n");
                 this._idleEnd = true;
             }
-            setTimeout(this._processCommandQueue.bind(this), 100);
+            setTimeout(this._processCommandQueueIfNotBusy.bind(this), 100);
             return;
         }
 
