@@ -395,7 +395,8 @@ define(function (require) {
 
         if (this.options.secureConnection) {
             this._connection = tls.connect(this.port, this.host, {
-                rejectUnauthorized: false
+                rejectUnauthorized: false,
+                ca: this.options.ca
             }, this._onConnect.bind(this));
         } else {
             this._connection = net.connect(this.port, this.host);
