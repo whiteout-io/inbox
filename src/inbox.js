@@ -1233,6 +1233,43 @@ define(function (require) {
     };
 
     /**
+     * Returns the uids of messages containing the search terms in the options
+     * (see "Finding messages" http://www.skytale.net/blog/archives/23-Manual-IMAP.html or http://tools.ietf.org/html/rfc3501#section-6.4.4)
+     * @param {String} options.subject Mails containing string in the subject
+     * @param {Function} callback(error, uids) invoked with the uids of messages matching the search terms, or an error object if an error occurred
+     */
+    IMAPClient.prototype.search = function (options, callback) {
+        this._uids = [];
+        if (this._currentState != this.states.SELECTED) {
+            if (typeof callback == "function") {
+                callback(new Error("No mailbox selected"));
+            }
+            return;
+        }
+
+        var query = 'UID SEARCH CHARSET UTF-8';
+        if (typeof options.subject === 'string') {
+            query += ' SUBJECT "' + options.subject + '"';
+        }
+
+        this._send(query, (function (status) {
+            if (typeof callback != "function") {
+                return;
+            }
+
+            if (status != "OK") {
+                callback(new Error("Error searching list"));
+                return;
+            }
+
+            for (var i = this._uids.length - 1; i >= 0; i--) {
+                this._uids[i] = Number(this._uids[i]);
+            }
+            callback(null, this._uids);
+        }).bind(this), this._armTimeout.bind(this, callback));
+    };
+
+    /**
      * Handle untagged FETCH responses, these have data about individual messages.
      *
      * @param {Array} list Params about a message
