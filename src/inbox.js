@@ -1754,6 +1754,53 @@ define(function (require) {
     };
 
     /**
+     * Lists message envelopes for selected uid range.
+     *
+     * @param {Number} from List from uid
+     * @param {Number} to (optional) Maximum inclusive uid, if uid > maximum uid value, it will list all available uids. If value not present, it will list items beginning at 'from'
+     * @param {Function} callback Callback function to run with the listed envelopes
+     */
+    IMAPClient.prototype.uidListMessages = function (from, to, callback) {
+        // No mailbox selected
+        if (this._currentState != this.states.SELECTED) {
+            if (typeof callback == "function") {
+                callback(new Error("No mailbox selected"));
+            }
+            return;
+        }
+
+        // Nothing to retrieve
+        if (!this._selectedMailbox.count) {
+            return callback(null, []);
+        }
+
+        if (typeof to == "function" && !callback) {
+            callback = to;
+            to = undefined;
+        }
+
+        from = Number(from) || 0;
+        to = to ? Number(to) : this._selectedMailbox.UIDNext;
+
+        this._collectMailList = true;
+        this._mailList = [];
+
+        this._send( "UID FETCH " + from + ":" + to + " (UID FLAGS ENVELOPE" +(this._capabilities.indexOf("X-GM-EXT-1") >= 0 ? " X-GM-LABELS X-GM-THRID" : "") + ")", (function (status) {
+            this._collectMailList = false;
+
+            if (typeof callback != "function") {
+                return;
+            }
+
+            if (status == "OK") {
+                callback(null, this._mailList);
+            } else {
+                callback(new Error("Error fetching list"));
+            }
+        }).bind(this), this._armTimeout.bind(this, callback));
+    };
+
+    /**
      * Lists flags for selected range. Negative numbers can be used to
      * count from the end of the list (most recent messages).
      *
