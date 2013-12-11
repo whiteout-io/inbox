@@ -1207,35 +1207,11 @@ define(function (require) {
     };
 
     /**
-     * Returns the number of unread messages in a callback
-     * @param  {Function} callback(error, unreadCount) invoked with the number of unread messages, or an error object if an error occurred
-     */
-    IMAPClient.prototype.unreadMessages = function (callback) {
-        this._uids = [];
-        if (this._currentState != this.states.SELECTED) {
-            if (typeof callback == "function") {
-                callback(new Error("No mailbox selected"));
-            }
-            return;
-        }
-
-        this._send('SEARCH UNSEEN', (function (status) {
-            if (typeof callback != "function") {
-                return;
-            }
-            if (status != "OK") {
-                callback(new Error("Error searching list"));
-                return;
-            }
-
-            callback(null, this._uids.length);
-        }).bind(this), this._armTimeout.bind(this, callback));
-    };
-
-    /**
      * Returns the uids of messages containing the search terms in the options
      * (see "Finding messages" http://www.skytale.net/blog/archives/23-Manual-IMAP.html or http://tools.ietf.org/html/rfc3501#section-6.4.4)
-     * @param {String} options.subject Mails containing string in the subject
+     * @param {String} options.subject (optional) Mails containing string in the subject
+     * @param {Boolean} options.answered (optional) Mails with or without the \Answered flag set.
+     * @param {Boolean} options.unread (optional) Mails with or without the \Seen flag set.
      * @param {Function} callback(error, uids) invoked with the uids of messages matching the search terms, or an error object if an error occurred
      */
     IMAPClient.prototype.search = function (options, callback) {
@@ -1250,6 +1226,12 @@ define(function (require) {
         var query = 'UID SEARCH CHARSET UTF-8';
         if (typeof options.subject === 'string') {
             query += ' SUBJECT "' + options.subject + '"';
+        }
+        if (typeof options.answered !== 'undefined') {
+            query += (options.answered ? ' ANSWERED' : ' UNANSWERED');
+        }
+        if (typeof options.unread !== 'undefined') {
+            query += (options.unread ? ' UNSEEN' : ' SEEN');
         }
 
         this._send(query, (function (status) {
@@ -1277,7 +1259,6 @@ define(function (require) {
     IMAPClient.prototype._handlerUntaggedFetch = function (list) {
         var envelope = (list || [])[3] || [],
             envelopeData = this._formatEnvelope(envelope),
-            nextUID = Number(this._selectedMailbox.UIDNext) || 0,
             nextUID = Number(this._selectedMailbox.UIDNext) || 0,
             currentUID = Number(envelopeData.UID) || 0;
 
