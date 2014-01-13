@@ -24,7 +24,7 @@ module.exports["Inbox tests"] = {
                             "World 4!"},
                         {raw: "Subject: hello 5\r\n\r\nWorld 5!"},
                         {raw: "Subject: hello 6\r\n\r\nWorld 6!"},
-                        {raw: "Content-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: quoted-printable\r\nMIME-Version: 1.0\r\n\r\nwow. very mail. such bodystructure."},
+                        {raw: "Content-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: quoted-printable\r\nMIME-Version: 1.0\r\n\r\nwow. very mail. such bodystructure.", flags: ["\\Answered"]},
                         {raw: "Content-Type: multipart/alternative;\r\n boundary=\"=_BOUNDARY_BOUNDARY_BOUNDARY_\";\r\n    charset=\"UTF-8\"\r\nMIME-Version: 1.0\r\nSender: \"FOOBAR\" <foo@bar.io>\r\n\r\nThis is a multi-part message in MIME format\r\n\r\n--=_BOUNDARY_BOUNDARY_BOUNDARY_\r\nContent-Type: text/plain\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\nFOOFOOFOOFOO\r\n\r\n\r\n--=_BOUNDARY_BOUNDARY_BOUNDARY_\r\nContent-Type: text/html\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\">\r\n<html>\r\n  <head>\r\n  <meta http-equiv=3D\"content-type\" content=3D\"text/html; charset=3Diso-=\r\n8859-1\">\r\n  <title>STUFF</title>\r\n  </head>\r\n  <body>\r\n  <p>stuff<p>\r\n  </body>\r\n</html>\r\n\r\n--=_BOUNDARY_BOUNDARY_BOUNDARY_--"}
                     ]
                 },
@@ -154,7 +154,7 @@ module.exports["Inbox tests"] = {
                 test.ifError(err);
                 test.equal(messages.length, 8);
                 for(var i = 0; i < messages.length; i++) {
-                    test.equal(messages[i].flags.length, i === 1 ? 1 : 0);
+                    test.equal(messages[i].flags.length, (i === 1 || i === 6) ? 1 : 0);
                 }
                 test.done();
             });
@@ -171,6 +171,90 @@ module.exports["Inbox tests"] = {
                 test.equal(message.title, "hello 4");
                 test.equal(message.from.address, "sender@example.com");
                 test.equal(message.to[0].name, "Receiver name");
+                test.done();
+             });
+        }).bind(this));
+    },
+
+    "Search read": function(test){
+        this.client.openMailbox("INBOX", (function(err){
+            test.ifError(err);
+            this.client.search({
+                unread: false
+            }, function(err, uids){
+                test.ifError(err);
+                test.equal(uids.length, 1);
+                test.equal(uids[0], 2);
+                test.done();
+             });
+        }).bind(this));
+    },
+
+    "Search answered": function(test){
+        this.client.openMailbox("INBOX", (function(err){
+            test.ifError(err);
+            this.client.search({
+                answered: true
+            }, function(err, uids){
+                test.ifError(err);
+                test.equal(uids.length, 1);
+                test.equal(uids[0], 7);
+                test.done();
+             });
+        }).bind(this));
+    },
+
+    "Search from": function(test){
+        this.client.openMailbox("INBOX", (function(err){
+            test.ifError(err);
+            this.client.search({
+                from: 'sender@example.com'
+            }, function(err, uids){
+                test.ifError(err);
+                test.equal(uids.length, 1);
+                test.equal(uids[0], 4);
+                test.done();
+             });
+        }).bind(this));
+    },
+
+    "Search to": function(test){
+        this.client.openMailbox("INBOX", (function(err){
+            test.ifError(err);
+            this.client.search({
+                to: 'receiver@example.com'
+            }, function(err, uids){
+                test.ifError(err);
+                test.equal(uids.length, 1);
+                test.equal(uids[0], 4);
+                test.done();
+             });
+        }).bind(this));
+    },
+
+    "Search subject": function(test){
+        this.client.openMailbox("INBOX", (function(err){
+            test.ifError(err);
+            this.client.search({
+                subject: 'hello 6'
+            }, function(err, uids){
+                test.ifError(err);
+                test.equal(uids.length, 1);
+                test.equal(uids[0], 6);
+                test.done();
+             });
+        }).bind(this));
+    },
+
+    "Search body": function(test){
+        this.client.openMailbox("INBOX", (function(err){
+            test.ifError(err);
+            this.client.search({
+                body: 'wow. very mail.'
+            }, function(err, uids){
+                test.ifError(err);
+                test.equal(uids.length, 1);
+                test.equal(uids[0], 7);
                 test.done();
              });
         }).bind(this));

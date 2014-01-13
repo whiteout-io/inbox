@@ -310,6 +310,27 @@ Example output for a message listing
 in the message object - for example, if there are no "cc:" addresses listed,
 there is no "cc" field in the message object.
 
+### Searching the mailbox
+
+To query the IMAP server for the uids of specific mails, use:
+
+```javascript
+    client.search({
+        subject: 'subject',           // optional
+        answered: false,              // optional
+        unread: true,                 // optional
+        from: 'sender@example.com',   // optional
+        to: 'receiver@example.com',   // optional
+        cc: 'cc@example.com',         // optional
+        bcc: 'bcc@example.com',       // optional
+        body: 'something in the body' // optional
+    }, function(err, uids) {
+        // do something useful with the uids
+    });
+```
+
+The provided parameters are joined via AND (logical conjunction). Using an empty parameter object will result in an empty uid array.
+
 ### Listing flags
 
 As a shorthand listing, you can also list only UID and Flags pairs
