@@ -1665,9 +1665,13 @@ define(function (require) {
 
         if (!Array.isArray(bs[0]) && typeof bs[0] === 'string' && bs.length >= 10) {
             // we've got a single part, usually a text/plain, text/html or attachment part
-            var currentPart = {};
+            var dispositionIndex = 8,
+                currentPart = {}, type, subtype;
+
             currentPart.part = parentBodypart || '1';
-            currentPart.type = (bs[0] + '/' + bs[1]).toLowerCase();
+            type = bs[0].toLowerCase();
+            subtype = bs[1].toLowerCase();
+            currentPart.type = type + '/' + subtype;
             currentPart.parameters = {};
             if (bs[2]) {
                 // the parameters are a key/value list
@@ -1679,10 +1683,23 @@ define(function (require) {
             }
             currentPart.encoding = bs[5].toLowerCase();
             currentPart.size = parseInt(bs[6], 10);
-            if (bs[8]) {
+
+            if (type === 'message' && subtype === 'rfc822') {
+                // parsing of envelope and body structure information for message/rfc882 mails is not supported,
+                // because there are IMAP servers which violate rfc 3501 for message/rfc882, for example gmail.
+                return currentPart;
+            }
+
+            if (type === 'text') {
+                // text/* body parts have an additional field for the body size in lines in its content transfer encoding.
+                currentPart.lines = parseInt(bs[7], 10);
+                dispositionIndex = 9;
+            }
+
+            if (bs[dispositionIndex]) {
                 currentPart.disposition = [];
-                if (Array.isArray(bs[8][0])) {
-                    bs[8].forEach(function(rawAttachment){
+                if (Array.isArray(bs[dispositionIndex][0])) {
+                    bs[dispositionIndex].forEach(function(rawAttachment){
                         if (!rawAttachment) {
                             return;
                         }
@@ -1690,7 +1707,7 @@ define(function (require) {
                         currentPart.disposition.push(parseAttachment(rawAttachment));
                     });
                 } else {
-                    currentPart.disposition.push(parseAttachment(bs[8]));
+                    currentPart.disposition.push(parseAttachment(bs[dispositionIndex]));
                 }
             }
             
