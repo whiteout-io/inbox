@@ -1745,7 +1745,7 @@ define(function (require) {
             return;
         }
 
-        this._send("UID FETCH " + this._selectedMailbox.UIDNext + ":* (FLAGS ENVELOPE" + (this._capabilities.indexOf("X-GM-EXT-1") >= 0 ? " X-GM-LABELS X-GM-THRID" : "") + ")", (function () {
+        this._send("UID FETCH " + this._selectedMailbox.UIDNext + ":* (UID BODYSTRUCTURE FLAGS ENVELOPE" + (this._capabilities.indexOf("X-GM-EXT-1") >= 0 ? " X-GM-LABELS X-GM-THRID" : "") + ")", (function () {
             this._checkForNewMail = false;
         }).bind(this), (function () {
             this._checkForNewMail = true;
