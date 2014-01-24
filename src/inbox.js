@@ -475,11 +475,6 @@ define(function (require) {
                     this._remainder = data;
                 }
 
-                if (this._literalStreaming) {
-                    this._messageStream.emit("end");
-                    this._messageStream.removeAllListeners();
-                }
-
                 this._currentMode = this.modes.COMMAND;
 
                 return this._onData(); // rerun with the remainder
@@ -2336,6 +2331,9 @@ define(function (require) {
                     stream.emit("error", new Error("Error fetching message: " + uid + "; " + this.port + "; " + this.host + "; " + JSON.stringify(this._selectedMailbox)));
                 }
             }
+
+            this._messageStream.emit("end");
+            this._messageStream.removeAllListeners();
 
             this._messageStream = null;
 
