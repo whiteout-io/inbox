@@ -1218,7 +1218,7 @@ define(function (require) {
             return;
         }
 
-        var query = 'UID SEARCH CHARSET UTF-8';
+        var query = 'UID SEARCH CHARSET UTF-8 ALL';
         if (typeof options.subject === 'string') {
             query += ' SUBJECT "' + options.subject + '"';
         }
