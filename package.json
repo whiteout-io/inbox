@@ -10,10 +10,10 @@
     "dependencies": {
         "amdefine": ">=0.0.8",
         "setimmediate": ">=1.0.1",
-        "utf7": "https://github.com/whiteout-io/utf7/tarball/amd",
-        "xoauth2": "https://github.com/whiteout-io/xoauth2/tarball/amd",
-        "mimelib": "https://github.com/whiteout-io/mimelib/tarball/amd",
-        "node-shims": "https://github.com/whiteout-io/node-shims/tarball/master"
+        "utf7": "https://github.com/whiteout-io/utf7/tarball/v2.0.0",
+        "xoauth2": "https://github.com/whiteout-io/xoauth2/tarball/v0.2.0",
+        "mimelib": "https://github.com/whiteout-io/mimelib/tarball/v0.3.0",
+        "node-shims": "https://github.com/whiteout-io/node-shims/tarball/v0.1.1"
     },
     "devDependencies": {
         "nodeunit": "*"
